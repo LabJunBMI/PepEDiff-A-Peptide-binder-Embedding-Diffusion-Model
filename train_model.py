@@ -9,12 +9,11 @@ from lightning_fabric.utilities.seed import seed_everything
 from dataset import LigandBindingSiteDataset
 from model import ConditionalBertForDiffusion
 
-MODEL_PATH = "./model_norm_no_x_res_loss_resconn.pt"
-TRAIN_DATA_FILE = "/data/bai/Drug_discovery/cleanData/BioLip/seq_emb_1024_no_x_z_train.pkl"
-VAL_DATA_FILE = "/data/bai/Drug_discovery/cleanData/BioLip/seq_emb_1024_no_x_z_val.pkl"
-# SPLIT_FILE = "/home/liangpu/simple_seq_emb_binder_gen/splits_no_x.pkl"
+MODEL_PATH = "./model.pt"
+TRAIN_DATA_FILE = "./data/seq_emb_1024_no_x_z_train.pkl"
+VAL_DATA_FILE = "./data/seq_emb_1024_no_x_z_val.pkl"
 
-GPU_ID = [6,7]
+GPU_ID = [0]
 NUM_THREAD = 16
 
 CONFIG = {

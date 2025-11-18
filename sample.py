@@ -14,12 +14,12 @@ from model_norm import ConditionalBertForDiffusion
 gc.enable()
 
 STEP = 2
-GPU_ID = 5
+GPU_ID = 0
 NUM_THREAD = 16
 DEVICE = f"cuda:{GPU_ID}"
-OUTPUT = "./data/sample_no_x_res_loss_resconn/{batch_idx}_{random_seed}.pkl"
-MODEL_PATH = ""
-DATA_FILE = ""
+OUTPUT = "./data/{batch_idx}_{random_seed}.pkl"
+MODEL_PATH = "./model.pt"
+DATA_FILE = "./seq_emb_1024_no_x_z_test.pkl"
 CONFIG = {
     "pocket_ext": 1,
     "timesteps": 999,
@@ -38,8 +38,8 @@ CONFIG = {
     "min_epochs": 40,
     "max_epochs": 500,
     "batch_size": 8,
-    "random_seed":0,
-    "feature_size": 1024
+    "random_seed": 0,
+    "feature_size": 1024,
 }
 
 
@@ -54,30 +54,31 @@ def p_sample(
     timestep: int,
     betas: torch.Tensor,
 ) -> torch.Tensor:
-    if(timestep<=1): # skip timestep=0
+    if timestep <= 1:  # skip timestep=0
         return ligand_emb_noise, ligand_emb_noise
     b = ligand_emb_noise.shape[0]
     alpha_beta_values = compute_alphas(betas)
     sqrt_recip_alphas = 1.0 / torch.sqrt(alpha_beta_values["alphas"])
     sqrt_recip_alphas_t = sqrt_recip_alphas[timestep]
     betas_t = betas[timestep]
-    sqrt_one_minus_alphas_cumprod_t = alpha_beta_values["sqrt_one_minus_alphas_cumprod"][timestep]
+    sqrt_one_minus_alphas_cumprod_t = alpha_beta_values[
+        "sqrt_one_minus_alphas_cumprod"
+    ][timestep]
     noise_pred = model(
-        torch.full(
-            (b,), timestep, device=DEVICE, dtype=torch.long
-        ),
+        torch.full((b,), timestep, device=DEVICE, dtype=torch.long),
         ligand_emb_noise,
         ligand_mask,
         receptor_emb,
         receptor_mask,
-        pocket_mask
+        pocket_mask,
     )
     model_mean = sqrt_recip_alphas_t * (
-        ligand_emb_noise - betas_t*noise_pred/sqrt_one_minus_alphas_cumprod_t
+        ligand_emb_noise - betas_t * noise_pred / sqrt_one_minus_alphas_cumprod_t
     )
     posterior_variance_t = alpha_beta_values["posterior_variance"][timestep]
     noise = torch.randn_like(ligand_emb_noise)
     return model_mean + torch.sqrt(posterior_variance_t) * noise, noise_pred
+
 
 @torch.no_grad()
 def p_sample_loop(
@@ -102,7 +103,7 @@ def p_sample_loop(
         desc="sampling loop time step",
         total=int(total_timesteps / STEP),
         disable=disable_pbar,
-    ) 
+    )
     for i in tqdm_bar:
         # Shape is (batch, seq_len, 1024)
         ligand_emb_noise, pred_noise = p_sample(
@@ -116,17 +117,20 @@ def p_sample_loop(
             betas=betas,
         )
         tqdm_bar.set_postfix(
-            emb_min=float(ligand_emb_noise.min()), 
+            emb_min=float(ligand_emb_noise.min()),
             emb_max=float(ligand_emb_noise.max()),
             pred_min=float(pred_noise.min()),
-            pred_max=float(pred_noise.max())
+            pred_max=float(pred_noise.max()),
         )
         noises.append(ligand_emb_noise.cpu())
     del b, ligand_emb_noise
     return torch.stack(noises)
 
+
 def sample_batch(model, test_ds: LigandBindingSiteDataset):
-    test_dataloader = DataLoader(test_ds, batch_size=CONFIG["batch_size"], prefetch_factor=2, num_workers=16)
+    test_dataloader = DataLoader(
+        test_ds, batch_size=CONFIG["batch_size"], prefetch_factor=2, num_workers=16
+    )
     for batch_idx, batch in enumerate(test_dataloader):
         print(f"Generating Batch {batch_idx}/{len(test_dataloader)}")
         # Sample noise and sample the lengths
@@ -148,15 +152,19 @@ def sample_batch(model, test_ds: LigandBindingSiteDataset):
             sampled[:, i, :l, :].numpy() for i, l in enumerate(ligand_length)
         ]
         trimmed_sampled = [s[-1] for s in trimmed_sampled]  # extract last time step
-        trimmed_sampled = [(p,s) for p,s in zip(batch["pdb_id"], trimmed_sampled)]
-        with open(OUTPUT.format(batch_idx=batch_idx, random_seed=CONFIG["random_seed"]), "+wb") as f:
+        trimmed_sampled = [(p, s) for p, s in zip(batch["pdb_id"], trimmed_sampled)]
+        with open(
+            OUTPUT.format(batch_idx=batch_idx, random_seed=CONFIG["random_seed"]), "+wb"
+        ) as f:
             pickle.dump(trimmed_sampled, f)
         del ligand_emb_noise, sampled, ligand_length, trimmed_sampled
     return None
 
+
 def get_test_dataset(file_path):
     test_ds = LigandBindingSiteDataset(file_path)
     return test_ds
+
 
 def load_model():
     bert_config = BertConfig(
@@ -182,8 +190,9 @@ def load_model():
     model = model.eval().to(DEVICE)
     return model
 
+
 if __name__ == "__main__":
-    torch.set_float32_matmul_precision("medium")
+    # torch.set_float32_matmul_precision("medium")
     torch.set_num_threads(NUM_THREAD)
     test_dataset = get_test_dataset(DATA_FILE)
     model = load_model()
@@ -195,15 +204,3 @@ if __name__ == "__main__":
     # sample_result = sample_batch(model, test_dataset)
     # with open(OUTPUT, "+wb") as f:
     #     pickle.dump(sample_result, f)
-
-"""
-from sample import *
-torch.set_float32_matmul_precision("medium")
-torch.set_num_threads(NUM_THREAD)
-seed_everything(CONFIG["random_seed"])
-test_dataset = get_test_dataset(DATA_FILE)
-model = load_model()
-sample_result = sample(model, test_dataset)
-with open(OUTPUT, "+wb") as f:
-    pickle.dump(sample_result, f)
-"""
