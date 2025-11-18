@@ -22,7 +22,9 @@ All pre-processed data files (training and testing) are available [here](https:/
 2. Place the downloaded files under the "data" directory.
    
 # 3. Reproduce Training Results
-Ensure training data is placed under "data" (see point 2).
+Ensure training data is placed under "data" (see point 2). 
+
+The pre-trained model can be dowloaded from [here](https://mailuc-my.sharepoint.com/:f:/g/personal/liangpu_mail_uc_edu/EpZSrs5C7bhGmIRfo7bwWzwBHYXFJbRiIDS8OxWs2nRDkw?e=pEy47Y).
 
 Run the training script:
 ``` bash
