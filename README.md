@@ -15,9 +15,9 @@ conda activate pepediff
 
 # 2. Prepare data
 
-All pre-processed data files (training and testing) are available on Zenodo. (Still uploading...)
+All pre-processed data files (training and testing) are available [here](https://mailuc-my.sharepoint.com/:f:/g/personal/liangpu_mail_uc_edu/EpZSrs5C7bhGmIRfo7bwWzwBHYXFJbRiIDS8OxWs2nRDkw?e=pEy47Y).
 
-1. Download the pre-processed data from the Zenodo URL.
+1. Download the pre-processed data from the URL.
 
 2. Place the downloaded files under the "data" directory.
    
