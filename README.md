@@ -10,7 +10,7 @@ For protein folding after generating binder sequences, we recommend using extern
 Create and activate the Conda environment from the provided environment.yml:
 ``` bash
 conda env create -f environment.yml
-conda activate myenv
+conda activate pepediff
 ```
 
 # 2. Prepare data
