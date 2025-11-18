@@ -13,6 +13,7 @@ from transformers.models.bert.modeling_bert import (
     BertConfig,
 )
 
+
 # self-defined modules
 class SELayer(nn.Module):
     # according to the paper: https://arxiv.org/pdf/2401.13858
@@ -62,6 +63,7 @@ class SELayer(nn.Module):
     def _modulate(self, x, shift, scale):
         return x * (1 + scale) + shift
 
+
 class GaussianFourierProjection(nn.Module):
     """
     Gaussian random features for encoding time steps.
@@ -93,13 +95,14 @@ class GaussianFourierProjection(nn.Module):
         embed = torch.cat([torch.sin(x_proj), torch.cos(x_proj)], dim=-1)
         return embed
 
+
 # main model
 class ConditionalBertForDiffusionBase(nn.Module):
     def __init__(self, feature_size: int, bert_config: BertConfig) -> None:
         super().__init__()
         decoder_config = deepcopy(bert_config)
-        decoder_config.is_decoder=True
-        decoder_config.add_cross_attention=True
+        decoder_config.is_decoder = True
+        decoder_config.add_cross_attention = True
         self.timestep_projector = GaussianFourierProjection(bert_config.hidden_size)
         self.ligand_feature_proj = nn.Linear(feature_size, bert_config.hidden_size)
         self.receptor_feature_proj = nn.Linear(feature_size, bert_config.hidden_size)
@@ -145,26 +148,23 @@ class ConditionalBertForDiffusionBase(nn.Module):
         receptor_masks = self._exetend_attention_mask(receptor_masks)
         pocket_mask = self._exetend_attention_mask(pocket_mask)
         timestep_proj = self.timestep_projector(timestep.squeeze(dim=-1)).unsqueeze(1)
-        noised_ligand_emb = self.ligand_feature_proj(noised_ligand_emb) # [L, 2048]
+        noised_ligand_emb = self.ligand_feature_proj(noised_ligand_emb)  # [L, 2048]
         receptor_emb = self.receptor_feature_proj(receptor_emb)
         # Encode Features
         noised_ligand_emb = self.ligand_encoder(
-            hidden_states = noised_ligand_emb, 
-            attention_mask = ligand_masks
-        ).last_hidden_state# + noised_ligand_emb + timestep_proj
+            hidden_states=noised_ligand_emb, attention_mask=ligand_masks
+        ).last_hidden_state  # + noised_ligand_emb + timestep_proj
         noised_ligand_emb = self.ligand_norm(noised_ligand_emb)
         noised_ligand_emb = self.timestep_emb(
             noised_ligand_emb, timestep_proj, ligand_masks
         )
         receptor_emb = self.receptor_encoder(
-            hidden_states = receptor_emb, 
-            attention_mask = receptor_masks
-        ).last_hidden_state# + receptor_emb
+            hidden_states=receptor_emb, attention_mask=receptor_masks
+        ).last_hidden_state  # + receptor_emb
         receptor_emb = self.receptor_norm(receptor_emb)
         pocket_emb = self.pocket_encoder(
-            hidden_states = receptor_emb, 
-            attention_mask = pocket_mask
-        ).last_hidden_state# + receptor_emb
+            hidden_states=receptor_emb, attention_mask=pocket_mask
+        ).last_hidden_state  # + receptor_emb
         pocket_emb = self.pocket_norm(pocket_emb)
         # Combine receptor and ligand
         denoised_ligand_emb = self.ligand_decoder(
@@ -185,6 +185,7 @@ class ConditionalBertForDiffusionBase(nn.Module):
         extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
         return extended_attention_mask
 
+
 class ConditionalBertForDiffusion(ConditionalBertForDiffusionBase, pl.LightningModule):
     """
     Wraps model by pl LightningModule
@@ -202,9 +203,7 @@ class ConditionalBertForDiffusion(ConditionalBertForDiffusionBase, pl.LightningM
         **kwargs,
     ):
         """Feed args to BertForDiffusionBase and then feed the rest into"""
-        ConditionalBertForDiffusionBase.__init__(
-            self, feature_size, bert_config
-        )
+        ConditionalBertForDiffusionBase.__init__(self, feature_size, bert_config)
         # Store information about leraning rates and loss
         self.steps_per_epoch = steps_per_epoch
         self.learning_rate = learning_rate
@@ -241,9 +240,11 @@ class ConditionalBertForDiffusion(ConditionalBertForDiffusionBase, pl.LightningM
         #     predicted_noise.shape,
         #     batch["sqrt_alphas_cumprod_t"].shape
         # )
-        noise_scale = batch["sqrt_one_minus_alphas_cumprod_t"].view(-1,1,1)
-        signal_scale = batch["sqrt_alphas_cumprod_t"].view(-1,1,1)
-        predicted_emb = (batch["noised_ligand_emb"] - noise_scale*predicted_noise)/signal_scale
+        noise_scale = batch["sqrt_one_minus_alphas_cumprod_t"].view(-1, 1, 1)
+        signal_scale = batch["sqrt_alphas_cumprod_t"].view(-1, 1, 1)
+        predicted_emb = (
+            batch["noised_ligand_emb"] - noise_scale * predicted_noise
+        ) / signal_scale
         predicted_emb = predicted_emb[ligand_mask]
         ligand_emb = batch["ligand_emb"][ligand_mask]
         predicted_noise = predicted_noise[ligand_mask]
@@ -256,12 +257,15 @@ class ConditionalBertForDiffusion(ConditionalBertForDiffusionBase, pl.LightningM
         # known_noise = known_noise.reshape(-1, self.feature_size)
         # target = torch.ones(known_noise.shape[0]).to(batch["noise"].device)
         # loss = self.loss(predicted_noise, known_noise, target)
-        loss = 0.8*self.loss(
-            predicted_noise, known_noise
-        ) + 0.1*self.loss(
-            predicted_emb, ligand_emb
-        ) + 0.1*self.cos_loss(
-            predicted_emb, ligand_emb, torch.ones(predicted_emb.shape[0], device=ligand_emb.device)
+        loss = (
+            0.8 * self.loss(predicted_noise, known_noise)
+            + 0.1 * self.loss(predicted_emb, ligand_emb)
+            + 0.1
+            * self.cos_loss(
+                predicted_emb,
+                ligand_emb,
+                torch.ones(predicted_emb.shape[0], device=ligand_emb.device),
+            )
         )
         return loss
 
@@ -270,7 +274,9 @@ class ConditionalBertForDiffusion(ConditionalBertForDiffusionBase, pl.LightningM
         Training step, runs once per batch
         """
         loss_terms = self._get_loss_terms(batch)
-        self.log_dict({"train_loss":loss_terms}, sync_dist=True)  # Don't seem to need rank zero or sync dist
+        self.log_dict(
+            {"train_loss": loss_terms}, sync_dist=True
+        )  # Don't seem to need rank zero or sync dist
         return loss_terms
 
     def on_train_batch_end(self, outputs, batch_idx, dataloader_idx=0) -> None:
@@ -291,9 +297,7 @@ class ConditionalBertForDiffusion(ConditionalBertForDiffusionBase, pl.LightningM
         """
         with torch.no_grad():
             loss_terms = self._get_loss_terms(batch)
-        loss_dict = {
-            "val_loss":loss_terms
-        }
+        loss_dict = {"val_loss": loss_terms}
         # with rank zero it seems that we don't need to use sync_dist
         self.log_dict(loss_dict, rank_zero_only=True, sync_dist=True)
         return loss_dict
