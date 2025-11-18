@@ -46,7 +46,9 @@ python emb_to_seq.py
 ```
 
 # 5. Generate binders
-We also provide the script to generate peptide binders by given receptor and pocket. Following is an example of generating 100 peptide binders, with length of 15, binds toward TIGIT on given pocket residues. The POCKET_IDX is separated by "," and count starting from 0. The generation config can be assigned using environment variable, and also can be changed by changing the value of first few lines of the code directly.
+We also provide a script to generate peptide binders given a receptor and pocket. The following is an example of generating 100 peptide binders of length 15 that bind to TIGIT, using specified pocket residues. The POCKET_IDX values should be separated by commas and are zero-indexed.
+
+The generation configuration can be set through environment variables, or modified directly in the first few lines of the script.
 
 ``` bash
 export GEN_NUM=100
